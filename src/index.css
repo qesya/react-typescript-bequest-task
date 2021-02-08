@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,400;0,700;1,100;1,400;1,700&display=swap');
+
+@tailwind base;
+@tailwind components;
+html,
+p {
+  font-family: 'Lato', sans-serif;
+}
+
+.bg-overlay{
+  position: fixed;
+  top: 0px;
+  left: 0px;
+  right: 0px;
+  bottom: 0px;
+  background-color: rgba(20, 20, 20, 0.75);
+}
+
+.modal{
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+@tailwind utilities;
