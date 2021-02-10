@@ -9,6 +9,15 @@ type FormData = {
     second_address: string;
 };
 
+type FormAddress = {
+    postcode?: string;
+    first_addressline?: string;
+    second_addressline?: string;
+    town?: string;
+    country?: string;
+}
+
 export type {
     FormData,
+    FormAddress,
 }

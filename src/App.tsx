@@ -2,34 +2,135 @@ import React, { useEffect, useState } from 'react';
 import './App.css';
 
 import { useForm } from "react-hook-form";
-import Card from './components/card';
 import Modal from 'react-modal';
 
 import { FormData } from './types/formdata';
-import { Country } from './types/country';
+import { People } from './types/people';
+import { Addresses, PostcodeResponse } from './types/response';
+import { findPostcode } from './api/getAddress';
 
 import dummy from './utils/dummy';
-import getCountry from './api/getcountry';
+
+import Card from './shared/components/Card';
+import DetailCard from './shared/components/DetailCard';
+import Form from './shared/components/Form';
+import RadioButton from './shared/components/RadioButton';
 
 function App() {
-  const { register, handleSubmit, errors } = useForm<FormData>();
+  const { register, handleSubmit } = useForm<FormData>();
   const [modalOpen, setModalOpen] = useState<boolean>(false);
-  const [listcountry, setListCountry] = useState<Country[]>([]);
+  const [selectedUser, setSelectedUser] = useState<People | null>(null);
+  const [dataUser, setDataUser] = useState<People[]>(dummy);
+  const [selectedAddress, setSelectedAddress] = useState<PostcodeResponse | null>(null);
+  const [mode, setMode] = useState<string>("manual");
+  const [error, setError] = useState<string>("");
 
-  useEffect(() => {
-    getCountry()
-      .then((res) => {
-        setListCountry(res.data);
-      })
-  }, [])
+  const [form, setForm] = useState<People>({
+    name: "",
+    phone: "",
+    email: "",
+    postcode: "",
+    first_address: "",
+    second_address: "",
+    town: "",
+    country: "",
+  })
+
+  const onSubmitPostCode = async (data: string) => {
+    try {
+      const response = await findPostcode(data);
+      console.log(response)
+      const res = response.data;
+      if (typeof res !== 'undefined' && res !== null) {
+        setSelectedAddress(res);
+        console.log("data api", selectedAddress)
+      }
+    } catch (err) {
+      if (err.message == 'Request failed with status code 400') {
+        setError('You entered wrong postcode.')
+        setTimeout(() => setError(''), 5000)
+      }
+    }
+    
+  };
+
+  const chooseAddress = (data: Addresses,) => {
+    setForm((oldState: any) => ({
+      ...oldState,
+      first_address: data.line_1,
+      second_address: data.line_2,
+      town: data.town_or_city,
+      country: data.country,
+    }))
+  }
 
   const onSubmit = handleSubmit(({ postcode }) => {
-    console.log(postcode);
+    const selected = dummy.filter((data) => data.postcode.includes(postcode));
+    setDataUser(selected);
   });
 
-  const onSubmitAdd = handleSubmit(({ name, phone, email, town, country }) => {
-    console.log(`${name} ${phone} ${email} ${town} ${country}`)
-  });
+  const onSubmitAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    dataUser.push(form);
+    console.log("[onSubmitAdd]", form)
+    setForm({ //reset
+      name: "",
+      phone: "",
+      email: "",
+      postcode: "",
+      first_address: "",
+      second_address: "",
+      town: "",
+      country: "",
+    });
+
+    setModalOpen(false);
+  };
+
+  const inputs_autocomplete = [
+    [
+      {
+        label: "Enter Postcode", type: "text", name: "postcode", placeholder: "Eg: PO16 7GZ", required: true,
+        autocomplete: {
+          label: "line_1",
+          list: selectedAddress?.addresses,
+          setList: setSelectedAddress,
+          onClick: chooseAddress,
+        },
+        onBlur: (e: React.ChangeEvent<HTMLInputElement>) => onSubmitPostCode(e.target.value)
+      },
+    ],
+    [
+      { label: "Name", type: "text", name: "name", placeholder: "Eg: Johny", required: true },
+    ],
+    [
+      { label: "Phone Number", type: "number", name: "phone", placeholder: "Eg: 44 123 4455", required: true },
+      { label: "Email", type: "email", name: "email", placeholder: "Eg: johny@gmail.com", required: true },
+    ],
+    { label: "First Address Line", type: "text", name: "first_address", placeholder: "Eg: Tw Associates", required: true },
+    { label: "Second Address Line", type: "text", name: "second_address", placeholder: "Eg: Tw Associates" },
+    [
+      { label: "Town", type: "text", name: "town", placeholder: "Eg: Tw Associates", required: true },
+      { label: "Country", type: "text", name: "country", placeholder: "Eg: England", required: true },
+    ],
+  ];
+
+  const inputs = [
+    [
+      { label: "Name", type: "text", name: "name", placeholder: "Eg: Johny", required: true },
+      { label: "Phone Number", type: "number", name: "phone", placeholder: "Eg: 44 123 4455", required: true },
+    ],
+    [
+      { label: "Email", type: "email", name: "email", placeholder: "Eg: johny@gmail.com", required: true },
+      {
+        label: "Enter Postcode", type: "text", name: "postcode", placeholder: "Eg: PO16 7GZ", required: true
+      },
+    ],
+    { label: "First Address Line", type: "text", name: "first_address", placeholder: "Eg: Tw Associates", required: true },
+    { label: "Second Address Line", type: "text", name: "second_address", placeholder: "Eg: Tw Associates" },
+    { label: "Town", type: "text", name: "town", placeholder: "Eg: Tw Associates", required: true},
+    { label: "Country", type: "text", name: "country", placeholder: "Eg: England", required: true },
+  ];
 
   return (
     <div className="App">
@@ -59,13 +160,13 @@ function App() {
           </form>
 
           {
-            dummy.map((data, index) => (
+            dataUser.map((data, index) => (
               <Card
                 key={index.toString()}
                 name={data.name}
                 email={data.email}
                 phone={data.phone}
-                job={data.job}
+                onClick={() => setSelectedUser(data)}
               />
             ))
           }
@@ -73,14 +174,20 @@ function App() {
 
         </div>
 
-        <div className="flex p-4 bg-red-100 w-3/12 rounded-lg mt-10">
-          <div className="flex flex-col justify-center w-full">
-            <div className="w-16 h-16 bg-green-100 rounded-lg mx-auto mb-12 mt-4"></div>
+        {
+          (selectedUser !== null) &&
+          <DetailCard
+            name={selectedUser.name}
+            email={selectedUser.email}
+            phone={selectedUser.phone}
+            country={selectedUser.country}
+            first_address={selectedUser.first_address}
+            second_address={selectedUser.second_address}
+            town={selectedUser.town}
+            post_code={selectedUser?.postcode}
+          />
+        }
 
-            <p>Rizky Bayu Oktavian</p>
-            <p>Frontend & UI UX Designer</p>
-          </div>
-        </div>
       </div>
 
       <Modal
@@ -93,132 +200,36 @@ function App() {
       >
         <div className="flex flex-col px-10 py-8">
           <h2 className="font-bold text-xl text-gray-600">Add People</h2>
-          <hr className="mt-6 mb-10" />
+          <hr className="mt-6 mb-4" />
 
-          <form onSubmit={onSubmitAdd} className="flex flex-col">
+          <RadioButton
+            label1="Manual Entry"
+            label2="Lookup by Postcode"
+            state={mode}
+            onChangeLabel1={(e: React.FormEvent<HTMLInputElement>) => setMode(e.currentTarget.value)}
+            onChangeLabel2={(e: React.FormEvent<HTMLInputElement>) => setMode(e.currentTarget.value)}
+          />
 
-            <div className="flex">
-              <div className="flex flex-col w-full mr-6">
-                <label htmlFor="" className="mb-2">Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  ref={register({
-                    required: true
-                  })}
-                  className="w-full py-3 px-6 border border-gray-200 rounded-lg mb-4 focus:outline-none"
-                  placeholder="Eg: Johny"
-                />
-              </div>
+          <span className="h-6 text-red-500 text-sm text-normal italic font-normal">{mode === 'autocomplete' ? error : ''}</span>
 
-              <div className="flex flex-col w-full">
-                <label htmlFor="" className="mb-2">Phone Number</label>
-                <input
-                  type="text"
-                  name="phone"
-                  ref={register({
-                    required: true
-                  })}
-                  className="w-full py-3 px-6 border border-gray-200 rounded-lg mb-4 focus:outline-none"
-                  placeholder="Eg: +44 123 4455"
-                />
-              </div>
-            </div>
+          {
+            (mode === "autocomplete") ?
+              <Form
+                state={[form, setForm]}
+                inputs={inputs_autocomplete}
+                onCancel={() => setModalOpen(!modalOpen)}
+                onSubmit={(e) => onSubmitAdd(e)}
+              />
+              :
+              <Form
+                state={[form, setForm]}
+                inputs={inputs}
+                onCancel={() => setModalOpen(!modalOpen)}
+                onSubmit={(e) => onSubmitAdd(e)}
+                autocomplete={false}
+              />
+          }
 
-            <div className="flex">
-              <div className="flex flex-col w-full mr-6">
-                <label htmlFor="" className="mb-2">Email</label>
-                <input
-                  type="text"
-                  name="email"
-                  ref={register({
-                    required: true
-                  })}
-                  className="w-full py-3 px-6 border border-gray-200 rounded-lg mb-4 focus:outline-none"
-                  placeholder="Eg: johny@gmail.com"
-                />
-              </div>
-
-              <div className="flex flex-col w-full">
-                <label htmlFor="" className="mb-2">Postcode</label>
-                <input
-                  type="text"
-                  name="postcode"
-                  ref={register({
-                    required: true
-                  })}
-                  className="w-full py-3 px-6 border border-gray-200 rounded-lg mb-4 focus:outline-none"
-                  placeholder="Eg: johny@gmail.com"
-                />
-              </div>
-            </div>
-
-            <label htmlFor="" className="mb-2">First Address Line</label>
-            <input
-              type="text"
-              name="first_address"
-              ref={register({
-                required: true
-              })}
-              className="w-full py-3 px-6 border border-gray-200 rounded-lg mb-4 focus:outline-none"
-              placeholder="Eg: johny@gmail.com"
-            />
-
-            <label htmlFor="" className="mb-2">Second Address Line</label>
-            <input
-              type="text"
-              name="second_address"
-              ref={register({
-                required: true
-              })}
-              className="w-full py-3 px-6 border border-gray-200 rounded-lg mb-4 focus:outline-none"
-              placeholder="Eg: Tw Associates"
-            />
-
-
-            <label htmlFor="" className="mb-2">Town</label>
-            <input
-              type="text"
-              name="town"
-              ref={register({
-                required: true
-              })}
-              className="w-full py-3 px-6 border border-gray-200 rounded-lg mb-4 focus:outline-none"
-              placeholder="Eg: Tw Associates"
-            />
-
-            <label htmlFor="" className="mb-2">Country</label>
-            <select
-              name="country"
-              ref={register({
-                required: true
-              })}
-              defaultValue={'DEFAULT'}
-              className="w-full py-3 px-6 border border-gray-200 rounded-lg mb-4 focus:outline-none"
-            >
-              <option value={'DEFAULT'} disabled>-- select country --</option>
-              {
-                Object.values(listcountry).map((data, index) => (
-                  <option value={data.country} key={index.toString()}>{data.country}</option>
-                ))
-              }
-            </select>
-
-            <div className="flex self-end">
-              <button
-                onClick={() => setModalOpen(!modalOpen)}
-                className="py-3 px-8 bg-gray-200 rounded-lg text-gray-700 font-bold mt-4 mr-4"
-                type="submit">
-                Cancel
-              </button>
-
-              <button
-                className="py-3 px-8 bg-green-400 rounded-lg text-white font-bold mt-4"
-                type="submit">
-                Submit
-            </button>
-            </div>
-          </form>
         </div>
       </Modal>
     </div >
